@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: producer-application
+  cloud:
+    stream:
+      bindings:
+        test01-output:
+          # 目的地。Kafka Topic
+          destination: test-01
+          # 内容格式
+          content-type: application/json
+          # Producer 配置项，对应 ProducerProperties 类
+          producer:
+            # 分区 key 表达式。该表达式基于 Spring EL，从消息中获得分区 key
+            partition-key-expression: payload['id']
+      kafka:
+        binder:
+          brokers: 127.0.0.1:9092
+        bindings:
+          test01-output:
+            producer:
+              # 是否同步发送消息，默认为 false 异步
+              sync: true
+management:
+  endpoints:
+    web:
+      exposure:
+        # 需要开放的端点。默认值只打开 health 和 info 两个端点。通过设置 * ，可以开放所有端点
+        include: '*'
+  endpoint:
+    health:
+      enabled: true
+      # 何时显示完整的健康信息。默认为 NEVER 都不展示。可选 WHEN_AUTHORIZED 当经过授权的用户；可选 ALWAYS 总是展示
+      show-details: always

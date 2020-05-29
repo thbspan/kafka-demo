@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: publisher-application
+  kafka:
+    bootstrap-servers: 127.0.0.1:9092
+  cloud:
+    bus:
+      enabled: true
+      # 目标消息队列，默认为 springCloudBus
+      destination: springCloudBus

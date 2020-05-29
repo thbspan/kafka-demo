@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: consumer-application
+  cloud:
+    stream:
+      bindings:
+        test01-input:
+          # 目的地。Kafka Topic
+          destination: test-01
+          # 内容格式
+          content-type: application/json
+          # 消费者分组、为空时会为该 Consumer 生成一个独有的随机的消费者分组，从而实现广播消费的功能；注意为空时需要关闭 dlq
+          group: test-group
+          # Consumer 配置项，对应 ConsumerProperties 类
+          consumer:
+            # 并发消费的线程数量
+            concurrency: 4
+            # 重试次数，默认为 3 次
+            max-attempts: 3
+            # 重试间隔的初始值，单位毫秒，默认为 1000
+            back-off-initial-interval: 3000
+            # 重试间隔的递乘系数，默认为 2.0
+            back-off-multiplier: 2.0
+            # 重试间隔的最大值，单位毫秒，默认为 10000
+            back-off-max-interval: 10000
+      kafka:
+        binder:
+          brokers: 127.0.0.1:9092
+        bindings:
+          test01-input:
+            consumer:
+              # 是否开启死信队列，默认为 false 关闭
+              enable-dlq: true
+              # 死信队列名，默认为 `errors.{topicName}.{consumerGroup}`，本示例中为 errors.test-01.test-group
+              dlq-name:
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always
+      enabled: true
