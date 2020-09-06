@@ -100,12 +100,15 @@ public class KafkaDemoTest {
     public void testProducer() {
         Properties props = new Properties();
         props.put("bootstrap.servers", "127.0.0.1:9092");
-        // 0-不应答。1-leader 应答。all-所有 leader 和 follower 应答
+        // 0  ：不应答。
+        // 1  ：leader 应答。
+        // all:当所有参考复制的节点全部收到消息时，生产者才会收到一个来自服务器的成功应答，延迟高
         props.put("acks", "1");
         // 发送失败时，重试发送的次数
         props.put("retries", 0);
         props.put("batch.size", 16384);
         props.put("linger.ms", 1);
+        // 生产者内存缓冲区的大小，生产者用它缓冲要发送到服务器的消息
         props.put("buffer.memory", 33554432);
         props.put("key.serializer", StringSerializer.class.getName());
         props.put("value.serializer", StringSerializer.class.getName());
