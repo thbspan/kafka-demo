@@ -20,6 +20,7 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
@@ -49,13 +50,20 @@ public class KafkaDemoTest {
     public void testConsumer() {
         Properties props = new Properties();
         props.put("bootstrap.servers", "127.0.0.1:9092");
+        // 指定消费者群组
         props.put("group.id", "test");
+        // 自动提交
         props.put("enable.auto.commit", "true");
+        // 自动提交时间间隔
         props.put("auto.commit.interval.ms", "1000");
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", StringDeserializer.class.getName());
+        // 分区分配策略 / RoundRobin - 会把所有主题和分区一起分配
+        props.put("partition.assignment.strategy", "org.apache.kafka.clients.consumer.RangeAssignor");
+        // 单次调用poll返回的最大记录数量
+        props.put("max.poll.records", 100);
         final KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
-
+        // 订阅主题、可以传入正则表达式匹配多个主题
         consumer.subscribe(Collections.singletonList("topic-test"), new ConsumerRebalanceListener() {
             /**
              * 这个方法里面可以提交偏移量操作以避免数据重复消费
@@ -87,13 +95,36 @@ public class KafkaDemoTest {
                 // consumer.seekToBeginning(partitions);
             }
         });
-
-        while (!Thread.currentThread().isInterrupted()) {
-            ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
-            for (ConsumerRecord<String, String> record : records) {
-                System.out.printf("partition = %d, offset = %d, key= %s value = %s%n", record.partition(), record.offset(), record.key(), record.value());
+        final Thread mainThread = Thread.currentThread();
+        // Registering a shutdown hook so we can exit cleanly
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Starting exit...");
+            // Note that shutdownhook runs in a separate thread, so the only thing we can safely do to a consumer is wake it up
+            consumer.wakeup();
+            try {
+                // 等待主线程执行完成
+                mainThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
+        }));
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                // 轮询消息
+                // 就像鲨鱼停止游动会死掉一样，消费者必须对kafka进行轮询，否则会被认为已经死亡，它的分区被移交给群组里的其他消费者
+                // poll方法接收一个超时时间参数，指定多久之后可以返回，如果有数据立即返回，没有会等到超时后返回空列表
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+                for (ConsumerRecord<String, String> record : records) {
+                    System.out.printf("partition = %d, offset = %d, key= %s value = %s%n", record.partition(), record.offset(), record.key(), record.value());
+                }
+            }
+        } catch (WakeupException e) {
+            // 消费者优雅退出：调用consumer.wakeup()，poll方法会抛出WakeupException异常
+        } finally {
+            // 关闭消费者，并且会立即触发一次再均衡
+            consumer.close();
         }
+
     }
 
     @Test
@@ -108,6 +139,8 @@ public class KafkaDemoTest {
         props.put("retries", 0);
         props.put("batch.size", 16384);
         props.put("linger.ms", 1);
+        // 启用发送消息压缩
+        props.put("compression.type", "snappy");
         // 生产者内存缓冲区的大小，生产者用它缓冲要发送到服务器的消息
         props.put("buffer.memory", 33554432);
         props.put("key.serializer", StringSerializer.class.getName());
@@ -115,7 +148,12 @@ public class KafkaDemoTest {
 
         try (Producer<String, String> producer = new KafkaProducer<>(props)) {
             for (int i = 0; i < 100; i++) {
-                producer.send(new ProducerRecord<>("topic-test", Integer.toString(i), Integer.toString(i)));
+                producer.send(new ProducerRecord<>("topic-test", Integer.toString(i), Integer.toString(i)), (recordMetadata, e) -> {
+                    // 回调处理
+                    if (e != null) {
+                        e.printStackTrace();
+                    }
+                });
             }
         }
     }
