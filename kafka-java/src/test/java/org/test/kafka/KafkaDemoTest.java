@@ -8,16 +8,20 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.consumer.RangeAssignor;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
@@ -32,7 +36,7 @@ public class KafkaDemoTest {
         System.out.println("createTopic starting");
 
         Properties props = new Properties();
-        props.put("bootstrap.servers", "127.0.0.1:9092");
+        props.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
         AdminClient adminClient = AdminClient.create(props);
 
         CreateTopicsResult createResult = adminClient.createTopics(Collections
@@ -49,19 +53,20 @@ public class KafkaDemoTest {
     @Test
     public void testConsumer() {
         Properties props = new Properties();
-        props.put("bootstrap.servers", "127.0.0.1:9092");
+        // 完整的参数见 ConsumerConfig
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
         // 指定消费者群组
-        props.put("group.id", "test");
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, "test");
         // 自动提交
-        props.put("enable.auto.commit", "true");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
         // 自动提交时间间隔
-        props.put("auto.commit.interval.ms", "1000");
-        props.put("key.deserializer", StringDeserializer.class.getName());
-        props.put("value.deserializer", StringDeserializer.class.getName());
+        props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "1000");
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         // 分区分配策略 / RoundRobin - 会把所有主题和分区一起分配
-        props.put("partition.assignment.strategy", "org.apache.kafka.clients.consumer.RangeAssignor");
+        props.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, RangeAssignor.class.getName());
         // 单次调用poll返回的最大记录数量
-        props.put("max.poll.records", 100);
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 50);
         final KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
         // 订阅主题、可以传入正则表达式匹配多个主题
         consumer.subscribe(Collections.singletonList("topic-test"), new ConsumerRebalanceListener() {
@@ -116,6 +121,8 @@ public class KafkaDemoTest {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
                 for (ConsumerRecord<String, String> record : records) {
                     System.out.printf("partition = %d, offset = %d, key= %s value = %s%n", record.partition(), record.offset(), record.key(), record.value());
+                    // 同步提交
+                    // consumer.commitSync();
                 }
             }
         } catch (WakeupException e) {
@@ -124,27 +131,26 @@ public class KafkaDemoTest {
             // 关闭消费者，并且会立即触发一次再均衡
             consumer.close();
         }
-
     }
 
     @Test
     public void testProducer() {
         Properties props = new Properties();
-        props.put("bootstrap.servers", "127.0.0.1:9092");
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
         // 0  ：不应答。
         // 1  ：leader 应答。
         // all:当所有参考复制的节点全部收到消息时，生产者才会收到一个来自服务器的成功应答，延迟高
-        props.put("acks", "1");
+        props.put(ProducerConfig.ACKS_CONFIG, "1");
         // 发送失败时，重试发送的次数
-        props.put("retries", 0);
-        props.put("batch.size", 16384);
-        props.put("linger.ms", 1);
+        props.put(ProducerConfig.RETRIES_CONFIG, 0);
+        props.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384);
+        props.put(ProducerConfig.LINGER_MS_CONFIG, 1);
         // 启用发送消息压缩
-        props.put("compression.type", "snappy");
+        props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "snappy");
         // 生产者内存缓冲区的大小，生产者用它缓冲要发送到服务器的消息
-        props.put("buffer.memory", 33554432);
-        props.put("key.serializer", StringSerializer.class.getName());
-        props.put("value.serializer", StringSerializer.class.getName());
+        props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 33554432);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
 
         try (Producer<String, String> producer = new KafkaProducer<>(props)) {
             for (int i = 0; i < 100; i++) {
