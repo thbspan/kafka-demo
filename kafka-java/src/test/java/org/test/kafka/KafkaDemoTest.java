@@ -142,7 +142,7 @@ public class KafkaDemoTest {
         // all:当所有参考复制的节点全部收到消息时，生产者才会收到一个来自服务器的成功应答，延迟高
         props.put(ProducerConfig.ACKS_CONFIG, "1");
         // 发送失败时，重试发送的次数
-        props.put(ProducerConfig.RETRIES_CONFIG, 0);
+        props.put(ProducerConfig.RETRIES_CONFIG, 3);
         props.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384);
         props.put(ProducerConfig.LINGER_MS_CONFIG, 1);
         // 启用发送消息压缩

@@ -9,7 +9,7 @@ spring:
           destination: test-01
           # 内容格式
           content-type: application/json
-          # 消费者分组、为空时会为该 Consumer 生成一个独有的随机的消费者分组，从而实现广播消费的功能；注意为空时需要关闭 dlq
+          # 消费者分组、为空时会为该 Consumer 生成一个独有的随机的消费者分组，从而实现广播消费的功能；注意为空时需要关闭 dlq；不为空是集群消费模式
           group: test-group
           # Consumer 配置项，对应 ConsumerProperties 类
           consumer:

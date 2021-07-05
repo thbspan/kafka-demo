@@ -13,27 +13,23 @@ public class KafkaConfig {
 
     @Bean
     public ApplicationRunner applicationRunner(KafkaTemplate<String, String> kafkaTemplate) {
-        return args -> {
-            new Thread(() -> {
-                // 发送消息
-                for (int i = 0; i < 10; i++) {
-                    ListenableFuture<SendResult<String, String>> send = kafkaTemplate.send("topic-test", Integer.toString(i), "test data " + i);
-                    send.addCallback(new ListenableFutureCallback<SendResult<String, String>>() {
+        return args -> new Thread(() -> {
+            // 发送消息
+            for (int i = 10; i < 20; i++) {
+                ListenableFuture<SendResult<String, String>> send = kafkaTemplate.send("topic-test", Integer.toString(i), "test data " + i);
+                send.addCallback(new ListenableFutureCallback<SendResult<String, String>>() {
 
-                        @Override
-                        public void onSuccess(SendResult<String, String> result) {
-                            System.out.println("send meg=" + result.getProducerRecord() + " success");
-                        }
+                    @Override
+                    public void onSuccess(SendResult<String, String> result) {
+                        System.out.println("send meg=" + result.getProducerRecord() + " success");
+                    }
 
-                        @Override
-                        public void onFailure(Throwable throwable) {
-                            throwable.printStackTrace();
-                        }
-                    });
-                }
-            }).start();
-
-
-        };
+                    @Override
+                    public void onFailure(Throwable throwable) {
+                        throwable.printStackTrace();
+                    }
+                });
+            }
+        }).start();
     }
 }
