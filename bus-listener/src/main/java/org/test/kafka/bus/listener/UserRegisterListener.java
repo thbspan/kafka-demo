@@ -9,6 +9,7 @@ import org.test.kafka.bus.event.UserRegisterEvent;
 @Component
 public class UserRegisterListener implements ApplicationListener<UserRegisterEvent> {
     private final Logger logger = LoggerFactory.getLogger(getClass());
+
     @Override
     public void onApplicationEvent(UserRegisterEvent event) {
         logger.info("[onApplicationEvent][监听到用户({}) 注册]", event.getUsername());

@@ -28,6 +28,7 @@ import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
+import org.test.partition.BananaPartitioner;
 
 public class KafkaDemoTest {
 
@@ -71,12 +72,13 @@ public class KafkaDemoTest {
         // 订阅主题、可以传入正则表达式匹配多个主题
         consumer.subscribe(Collections.singletonList("topic-test"), new ConsumerRebalanceListener() {
             /**
-             * 这个方法里面可以提交偏移量操作以避免数据重复消费
+             * 再均衡开始之前和停止读取消息后被调用
+             * 在这里提交偏移量，下一个接管分区的消费者就知道从哪里开始读取
              */
             @Override
             public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-                // 提交偏移量
-                consumer.commitAsync();
+                // 提交偏移量 Map<TopicPartition, OffsetAndMetadata> currentOffsets = ...; consumer.commitSync(currentOffsets);
+                consumer.commitSync();
             }
 
             /**
@@ -151,10 +153,11 @@ public class KafkaDemoTest {
         props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 33554432);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-
+        // 自定义分区策略
+        props.put(ProducerConfig.PARTITIONER_CLASS_CONFIG, BananaPartitioner.class.getName());
         try (Producer<String, String> producer = new KafkaProducer<>(props)) {
-            for (int i = 0; i < 100; i++) {
-                producer.send(new ProducerRecord<>("topic-test", Integer.toString(i), Integer.toString(i)), (recordMetadata, e) -> {
+            for (int i = 100; i < 120; i++) {
+                producer.send(new ProducerRecord<>("topic-test", null, Integer.toString(i)), (recordMetadata, e) -> {
                     // 回调处理
                     if (e != null) {
                         e.printStackTrace();

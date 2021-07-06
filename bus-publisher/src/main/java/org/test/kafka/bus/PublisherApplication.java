@@ -7,6 +7,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class PublisherApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(PublisherApplication.class);
+        SpringApplication.run(PublisherApplication.class, args);
     }
 }

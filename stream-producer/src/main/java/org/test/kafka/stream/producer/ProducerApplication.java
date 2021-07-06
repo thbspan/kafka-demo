@@ -10,6 +10,6 @@ import org.test.kafka.stream.producer.message.MySource;
 public class ProducerApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(ProducerApplication.class);
+        SpringApplication.run(ProducerApplication.class, args);
     }
 }

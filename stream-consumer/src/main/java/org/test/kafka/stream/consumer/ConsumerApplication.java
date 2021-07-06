@@ -10,6 +10,6 @@ import org.test.kafka.stream.consumer.listener.MySink;
 public class ConsumerApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(ConsumerApplication.class);
+        SpringApplication.run(ConsumerApplication.class, args);
     }
 }

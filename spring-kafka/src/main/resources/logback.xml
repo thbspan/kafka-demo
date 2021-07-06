@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- scan:默认为true。作用：当设置为true时，如果配置文件发生改变，将会被重新加载 -->
+<!-- scanPeriod:检测配置文件是否有修改时间间隔 -->
+<!-- debug：默认为false。作用：当此属性为true时，将打印出logback内部日志信息，实时查看logback运行状态 -->
+<configuration scan="true" scanPeriod="60 seconds" debug="false">
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{35} - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

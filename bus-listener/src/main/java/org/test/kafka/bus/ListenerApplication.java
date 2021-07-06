@@ -9,6 +9,6 @@ import org.springframework.cloud.bus.jackson.RemoteApplicationEventScan;
 public class ListenerApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(ListenerApplication.class);
+        SpringApplication.run(ListenerApplication.class, args);
     }
 }
