@@ -60,6 +60,7 @@ public class KafkaDemoTest {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "test");
         // 自动提交
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+
         // 自动提交时间间隔
         props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "1000");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
@@ -141,20 +142,46 @@ public class KafkaDemoTest {
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
         // 0  ：不应答。
         // 1  ：leader 应答。
-        // all:当所有参考复制的节点全部收到消息时，生产者才会收到一个来自服务器的成功应答，延迟高
+        // all:当所有同步副本收到消息时，生产者才会收到一个来自服务器的成功应答，延迟高，可以结合 min.insync.replicas 参数使用
         props.put(ProducerConfig.ACKS_CONFIG, "1");
         // 发送失败时，重试发送的次数
         props.put(ProducerConfig.RETRIES_CONFIG, 3);
+        // 重试的时间间隔
+        props.put(ProducerConfig.RETRY_BACKOFF_MS_CONFIG, 100);
+        // 一个批次可以使用的内存大小
         props.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384);
-        props.put(ProducerConfig.LINGER_MS_CONFIG, 1);
+        // 在发送批次之前最长的等待时间，会增加延迟，但能够提升吞吐量
+        props.put(ProducerConfig.LINGER_MS_CONFIG, 10);
         // 启用发送消息压缩
         props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "snappy");
-        // 生产者内存缓冲区的大小，生产者用它缓冲要发送到服务器的消息
+        /*
+         * 生产者内存缓冲区的大小，生产者用它缓冲要发送到服务器的消息
+         * 如果应用程序发送消息的速度 > 发送到服务器的速度，会导致缓冲区空间不足，
+         * 这个时候调用send()方法，要么阻塞，要么抛出异常，取决于 MAX_BLOCK_MS_CONFIG(max.block.ms)参数
+         * （表示在抛出异常之前可以阻塞一会儿）
+         * 单位 bytes
+         * 33554432 bytes = 32768 KB (*1024) = 32 MB (*1024*1024)
+         */
         props.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 33554432);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         // 自定义分区策略
         props.put(ProducerConfig.PARTITIONER_CLASS_CONFIG, BananaPartitioner.class.getName());
+        // 同步发送
+        try (Producer<String, String> producer = new KafkaProducer<>(props)) {
+            // key 值可以设置，也可以不设置；相同的key值会发送到相同的分区
+            producer.send(new ProducerRecord<>("topic-test", null, Integer.toString(20))).get();
+        } catch (ExecutionException | InterruptedException e) {
+            /*
+             * 如果在发送数据之前或者发送过程中发生任何错误，比如broker返回一个不容许重发消息的异常或已经超过了重发的次数，
+             * 那么就会抛出异常
+             * 错误一般分为可重试错误和不可重试错误
+             * 可重试错误：连接错误、无主错误；多次重试还是异常，会收到 重试异常 错误
+             * 不可重试错误：消息太大
+             */
+            e.printStackTrace();
+        }
+        // 异步发送
         try (Producer<String, String> producer = new KafkaProducer<>(props)) {
             for (int i = 100; i < 120; i++) {
                 producer.send(new ProducerRecord<>("topic-test", null, Integer.toString(i)), (recordMetadata, e) -> {
