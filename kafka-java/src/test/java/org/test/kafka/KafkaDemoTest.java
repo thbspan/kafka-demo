@@ -3,6 +3,7 @@ package org.test.kafka;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
@@ -69,6 +70,10 @@ public class KafkaDemoTest {
         props.put(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, RangeAssignor.class.getName());
         // 单次调用poll返回的最大记录数量
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 50);
+        // session 超时时间，默认10s
+        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 10000);
+        // 心跳时间间隔
+        props.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 3000);
         final KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
         // 订阅主题、可以传入正则表达式匹配多个主题
         consumer.subscribe(Collections.singletonList("topic-test"), new ConsumerRebalanceListener() {
@@ -116,6 +121,16 @@ public class KafkaDemoTest {
                 e.printStackTrace();
             }
         }));
+        // commitSync(consumer);
+        // commitAsync(consumer);
+        // commitAsyncAndSync(consumer);
+        commitSpecOffset(consumer);
+    }
+
+    /**
+     * 同步提交当前批次最新的消息
+     */
+    private void commitSync(KafkaConsumer<String, String> consumer) {
         try {
             while (!Thread.currentThread().isInterrupted()) {
                 // 轮询消息
@@ -124,15 +139,132 @@ public class KafkaDemoTest {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
                 for (ConsumerRecord<String, String> record : records) {
                     System.out.printf("partition = %d, offset = %d, key= %s value = %s%n", record.partition(), record.offset(), record.key(), record.value());
-                    // 同步提交
-                    // consumer.commitSync();
                 }
+                /*
+                 * 同步提交，提交当前批次最新的偏移量
+                 * 在成功提交或碰到无法恢复的错误之前，commitSync会一直重试
+                 */
+                consumer.commitSync();
+                // 同步和异步组合提交  consumer.commitAsync / consumer.commitSync
             }
         } catch (WakeupException e) {
             // 消费者优雅退出：调用consumer.wakeup()，poll方法会抛出WakeupException异常
         } finally {
             // 关闭消费者，并且会立即触发一次再均衡
             consumer.close();
+        }
+    }
+
+    /**
+     * 异步提交当前批次最新的消息
+     */
+    private void commitAsync(KafkaConsumer<String, String> consumer) {
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                // 轮询消息
+                // 就像鲨鱼停止游动会死掉一样，消费者必须对kafka进行轮询，否则会被认为已经死亡，它的分区被移交给群组里的其他消费者
+                // poll方法接收一个超时时间参数，指定多久之后可以返回，如果有数据立即返回，没有会等到超时后返回空列表
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+                for (ConsumerRecord<String, String> record : records) {
+                    System.out.printf("partition = %d, offset = %d, key= %s value = %s%n", record.partition(), record.offset(), record.key(), record.value());
+                }
+                /*
+                 * 异步提交，提交当前批次最新的偏移量
+                 * 异步提交不会执行重试
+                 */
+                consumer.commitAsync((offsets, e) -> {
+                    if (e != null) {
+                        e.printStackTrace();
+                    }
+                });
+            }
+        } catch (WakeupException e) {
+            // 消费者优雅退出：调用consumer.wakeup()，poll方法会抛出WakeupException异常
+        } finally {
+            // 关闭消费者，并且会立即触发一次再均衡
+            consumer.close();
+        }
+    }
+
+    /**
+     * 同步和异步组合提交
+     */
+    private void commitAsyncAndSync(KafkaConsumer<String, String> consumer) {
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                // 轮询消息
+                // 就像鲨鱼停止游动会死掉一样，消费者必须对kafka进行轮询，否则会被认为已经死亡，它的分区被移交给群组里的其他消费者
+                // poll方法接收一个超时时间参数，指定多久之后可以返回，如果有数据立即返回，没有会等到超时后返回空列表
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+                for (ConsumerRecord<String, String> record : records) {
+                    System.out.printf("partition = %d, offset = %d, key= %s value = %s%n", record.partition(), record.offset(), record.key(), record.value());
+                }
+                /*
+                 * 异步提交，提交当前批次最新的偏移量
+                 * 异步提交不会执行重试
+                 * 如果一切正常，使用异步提交，这样速度更快
+                 */
+                consumer.commitAsync();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                /*
+                 * 出现异常，同步提交的方式，会一直重试，直到提交成功或发生无法恢复的错误
+                 * 但是这里提交的是最后一个偏移量，可能有些消息还没有处理，导致遗漏
+                 */
+                consumer.commitSync();
+            } finally {
+                consumer.close();
+            }
+        }
+    }
+
+    /**
+     * 提交特定的偏移量
+     */
+    private void commitSpecOffset(KafkaConsumer<String, String> consumer) {
+        Map<TopicPartition, OffsetAndMetadata> currentOffsets = new HashMap<>();
+
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                int count = 0;
+                // 轮询消息
+                // 就像鲨鱼停止游动会死掉一样，消费者必须对kafka进行轮询，否则会被认为已经死亡，它的分区被移交给群组里的其他消费者
+                // poll方法接收一个超时时间参数，指定多久之后可以返回，如果有数据立即返回，没有会等到超时后返回空列表
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+                for (ConsumerRecord<String, String> record : records) {
+                    System.out.printf("partition = %d, offset = %d, key= %s value = %s%n", record.partition(), record.offset(), record.key(), record.value());
+                    currentOffsets.put(new TopicPartition(record.topic(), record.partition()),
+                            new OffsetAndMetadata(record.offset() + 1));
+                    if (count % 10 == 0) {
+                        consumer.commitAsync(currentOffsets, (offsets, e) -> {
+                            if (e != null) {
+                                e.printStackTrace();
+                            }
+                        });
+                    }
+                    count++;
+                }
+                /*
+                 * 异步提交，提交当前批次最新的偏移量
+                 * 异步提交不会执行重试
+                 * 如果一切正常，使用异步提交，这样速度更快
+                 */
+                consumer.commitAsync();
+            }
+        } catch (WakeupException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                /*
+                 * 出现异常，同步提交的方式，会一直重试，直到提交成功或发生无法恢复的错误
+                 */
+                consumer.commitSync(currentOffsets);
+            } finally {
+                consumer.close();
+            }
         }
     }
 
