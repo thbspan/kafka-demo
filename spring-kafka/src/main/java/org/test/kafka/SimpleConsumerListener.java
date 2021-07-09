@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class SimpleConsumerListener {
 
+    public static final String TOPIC = "topic-test";
     /**
      * https://www.jianshu.com/p/a64defb44a23
      * <br/>
@@ -26,7 +27,7 @@ public class SimpleConsumerListener {
      *
      * listen8(List<ConsumerRecord<K,V>> data, Acknowledgment acknowledgment, Consumer<K,V> consumer)
      */
-    @KafkaListener(topics = {"topic-test"})
+    @KafkaListener(topics = {TOPIC})
     public void listen(ConsumerRecord<String, String> record) {
         System.out.println("rec message: " + record);
     }

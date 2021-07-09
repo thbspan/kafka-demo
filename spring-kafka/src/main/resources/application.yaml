@@ -12,7 +12,7 @@ spring:
       retries: 3
       # 批量发送消息的最大数量
       batch-size: 16384
-      # 批量发送消息的最大内存
+      # 生产者内存缓冲区的大小，生产者用它缓冲要发送到服务器的消息
       buffer-memory: 33554432
       # 消息key的序列化
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -23,7 +23,7 @@ spring:
           # 批处理延迟时间上限
           ms: 1000
     consumer:
-      # 设置消费者分组最初的消费进度为 earliest 。可参考博客 https://blog.csdn.net/lishuangzhe7047/article/details/74530417 理解
+      # 设置 earliest 分区没有 offset 时，从头开始消费。可参考博客 https://blog.csdn.net/lishuangzhe7047/article/details/74530417 理解
       auto-offset-reset: earliest
       enable-auto-commit: true
       auto-commit-interval: 1000ms
@@ -33,4 +33,3 @@ spring:
       properties:
         # 分区策略
         partition.assignment.strategy: org.apache.kafka.clients.consumer.RangeAssignor
-
